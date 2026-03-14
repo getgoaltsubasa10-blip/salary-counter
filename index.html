@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>給与カウンター</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--surface:#12121a;--card:#1a1a26;--border:#2a2a3e;--accent:#00ff88;--accent2:#00ccff;--night:#a78bfa;--night-dim:rgba(167,139,250,0.15);--warn:#ff6b35;--text:#e8e8f0;--muted:#5a5a8a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,255,136,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;}
+.container{max-width:480px;margin:0 auto;padding:20px 16px 80px;}
+
+/* ── Nav Tabs ── */
+.nav-tabs{display:flex;gap:4px;background:var(–card);border:1px solid var(–border);border-radius:14px;padding:4px;margin-bottom:16px;}
+.nav-tab{flex:1;padding:9px 4px;border:none;background:transparent;color:var(–muted);font-family:‘Noto Sans JP’,sans-serif;font-size:12px;cursor:pointer;border-radius:10px;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.nav-tab .tab-icon{font-size:16px;}
+.nav-tab .tab-label{font-size:9px;letter-spacing:1px;}
+.nav-tab.active{background:var(–surface);color:var(–text);}
+.page{display:none;}.page.active{display:block;}
+
+/* Clock */
+.clock-wrap{display:flex;flex-direction:column;align-items:center;padding:16px 0 12px;gap:8px;}
+.clock-canvas-wrap{position:relative;width:140px;height:140px;}
+canvas#clockFace{display:block;}
+.night-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:var(–night);color:#0a0010;font-family:‘Space Mono’,monospace;font-size:9px;letter-spacing:2px;padding:3px 10px;border-radius:20px;white-space:nowrap;display:none;font-weight:700;}
+.night-badge.show{display:block;}
+.digital-clock{font-family:‘Space Mono’,monospace;font-size:28px;font-weight:700;letter-spacing:3px;color:var(–text);transition:color 0.5s;}
+.digital-clock.night-mode{color:var(–night);text-shadow:0 0 16px rgba(167,139,250,0.5);}
+.date-text{font-size:10px;color:var(–muted);letter-spacing:2px;}
+
+/* Night bar */
+.night-zone-bar{width:100%;height:28px;background:var(–card);border:1px solid var(–border);border-radius:10px;margin-bottom:4px;position:relative;overflow:hidden;}
+.night-zone-label{position:absolute;font-family:‘Space Mono’,monospace;font-size:9px;color:var(–night);letter-spacing:1px;white-space:nowrap;top:50%;transform:translateY(-50%);}
+.bar-label-22{left:calc(22/24 * 100% + 3px);}
+.bar-label-05{left:calc(5/24 * 100% + 3px);}
+.now-marker{position:absolute;top:0;bottom:0;width:2px;background:var(–accent);border-radius:1px;transition:left 1s linear;}
+.now-marker::after{content:‘NOW’;position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-family:‘Space Mono’,monospace;font-size:8px;color:var(–accent);letter-spacing:1px;}
+.bar-bottom{margin-top:6px;margin-bottom:16px;font-size:10px;color:var(–muted);letter-spacing:1px;text-align:center;}
+.section-title{font-size:10px;letter-spacing:3px;color:var(–muted);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+
+/* Jobs */
+.jobs-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;}
+.jobs-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–accent),transparent);opacity:0.4;}
+.job-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+.job-item{display:flex;align-items:center;gap:10px;background:var(–surface);border:2px solid var(–border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s;position:relative;}
+.job-item:hover{border-color:rgba(0,255,136,0.3);}
+.job-item.selected{border-color:var(–accent);box-shadow:0 0 0 1px rgba(0,255,136,0.15);}
+.job-color-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.job-info{flex:1;min-width:0;}
+.job-name{font-size:14px;font-weight:700;color:var(–text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.job-wage{font-family:‘Space Mono’,monospace;font-size:11px;color:var(–muted);margin-top:2px;}
+.job-wage .night-w{color:var(–night);}
+.job-actions{display:flex;gap:6px;flex-shrink:0;}
+.job-btn{background:none;border:1px solid var(–border);border-radius:8px;padding:4px 8px;font-size:11px;color:var(–muted);cursor:pointer;transition:all 0.2s;font-family:‘Space Mono’,monospace;}
+.job-btn:hover{border-color:var(–accent);color:var(–accent);}
+.job-btn.del:hover{border-color:var(–warn);color:var(–warn);}
+.selected-check{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;color:var(–accent);display:none;}
+.job-item.selected .selected-check{display:block;}
+.job-item.selected .job-actions{margin-right:24px;}
+.add-job-btn{width:100%;background:transparent;border:1px dashed var(–border);border-radius:10px;padding:11px;color:var(–muted);font-family:‘Space Mono’,monospace;font-size:11px;letter-spacing:2px;cursor:pointer;transition:all 0.2s;}
+.add-job-btn:hover{border-color:var(–accent);color:var(–accent);}
+
+/* Counter */
+.counter-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:24px 20px;margin-bottom:16px;position:relative;overflow:hidden;transition:border-color 0.4s,box-shadow 0.4s;}
+.counter-card.running{border-color:rgba(0,255,136,0.4);box-shadow:0 0 40px rgba(0,255,136,0.07);}
+.counter-card.running.night-running{border-color:rgba(167,139,250,0.5);box-shadow:0 0 40px rgba(167,139,250,0.1);}
+.counter-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–accent2),transparent);opacity:0.4;}
+.active-job-banner{display:none;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;margin-bottom:14px;font-size:12px;font-weight:700;}
+.active-job-banner.show{display:flex;}
+.status-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.status-badge{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:2px;color:var(–muted);text-transform:uppercase;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(–muted);transition:background 0.3s;flex-shrink:0;}
+.status-dot.active{background:var(–accent);box-shadow:0 0 8px var(–accent);animation:pulse 2s infinite;}
+.status-dot.night-active{background:var(–night);box-shadow:0 0 8px var(–night);animation:pulse 2s infinite;}
+.status-dot.break-active{background:var(–warn);box-shadow:0 0 8px var(–warn);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.75);}}
+.elapsed-time{font-family:‘Space Mono’,monospace;font-size:12px;color:var(–muted);letter-spacing:1px;}
+.night-tag{display:none;align-items:center;gap:6px;background:var(–night-dim);border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:5px 10px;font-size:10px;color:var(–night);letter-spacing:1px;margin-bottom:10px;font-family:‘Space Mono’,monospace;}
+.night-tag.show{display:flex;}
+.night-tag-dot{width:6px;height:6px;border-radius:50%;background:var(–night);animation:pulse 2s infinite;flex-shrink:0;}
+.money-display{text-align:center;margin-bottom:16px;position:relative;}
+.money-label{font-size:10px;letter-spacing:4px;color:var(–muted);text-transform:uppercase;margin-bottom:8px;}
+.money-value{font-family:‘Space Mono’,monospace;font-size:48px;font-weight:700;color:var(–accent);line-height:1;letter-spacing:-2px;transition:color 0.5s;position:relative;display:inline-block;}
+.money-value.night-color{color:var(–night);}
+.money-value .yen{font-size:24px;vertical-align:super;margin-right:3px;opacity:0.75;}
+.money-value .decimal{font-size:24px;opacity:0.55;}
+.coin-float{position:absolute;font-family:‘Space Mono’,monospace;font-size:11px;color:var(–accent);pointer-events:none;animation:floatUp 1.5s ease-out forwards;white-space:nowrap;}
+.coin-float.night-coin{color:var(–night);}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-55px) scale(0.7);}}
+@keyframes glowDay{0%,100%{text-shadow:0 0 20px rgba(0,255,136,0.5);}50%{text-shadow:0 0 40px rgba(0,255,136,0.9);}}
+@keyframes glowNight{0%,100%{text-shadow:0 0 20px rgba(167,139,250,0.5);}50%{text-shadow:0 0 40px rgba(167,139,250,0.9);}}
+.money-value.running{animation:glowDay 2s ease-in-out infinite;}
+.money-value.running.night-color{animation:glowNight 2s ease-in-out infinite;}
+.earn-breakdown{display:flex;justify-content:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.earn-chip{font-family:‘Space Mono’,monospace;font-size:10px;padding:4px 10px;border-radius:20px;letter-spacing:1px;}
+.earn-chip.day-chip{background:rgba(0,255,136,0.1);color:var(–accent);border:1px solid rgba(0,255,136,0.25);}
+.earn-chip.night-chip{background:var(–night-dim);color:var(–night);border:1px solid rgba(167,139,250,0.3);}
+.rate-display{display:flex;justify-content:center;gap:20px;margin-bottom:18px;}
+.rate-item{text-align:center;}
+.rate-value{font-family:‘Space Mono’,monospace;font-size:13px;color:var(–accent2);font-weight:700;transition:color 0.5s;}
+.rate-value.night-rate{color:var(–night);}
+.rate-label{font-size:10px;color:var(–muted);letter-spacing:2px;margin-top:3px;text-transform:uppercase;}
+.progress-wrap{height:3px;background:var(–surface);border-radius:2px;margin:12px 0;overflow:hidden;}
+.progress-bar{height:100%;border-radius:2px;background:linear-gradient(90deg,var(–accent),var(–accent2));transition:width 1s linear,background 0.5s;width:0%;}
+.progress-bar.night-bar{background:linear-gradient(90deg,var(–night),#c4b5fd);}
+
+/* Break timer */
+.break-banner{display:none;align-items:center;gap:10px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;}
+.break-banner.show{display:flex;}
+.break-icon{font-size:18px;}
+.break-info{flex:1;}
+.break-title{font-size:11px;color:var(–warn);letter-spacing:2px;font-family:‘Space Mono’,monospace;}
+.break-timer-val{font-family:‘Space Mono’,monospace;font-size:18px;font-weight:700;color:var(–warn);margin-top:2px;}
+.break-end-btn{background:var(–warn);border:none;border-radius:8px;padding:7px 12px;color:#1a0500;font-family:‘Space Mono’,monospace;font-size:10px;letter-spacing:2px;cursor:pointer;font-weight:700;white-space:nowrap;}
+.break-end-btn:hover{opacity:0.85;}
+
+/* Buttons row */
+.btn-row{display:flex;gap:8px;}
+.toggle-btn{flex:1;border-radius:14px;padding:17px;font-family:‘Space Mono’,monospace;font-size:11px;letter-spacing:3px;cursor:pointer;border:none;transition:all 0.25s;text-transform:uppercase;font-weight:700;}
+.toggle-btn.start{background:linear-gradient(135deg,#00ff88,#00cc70);color:#001a0e;}
+.toggle-btn.start:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,255,136,0.4);}
+.toggle-btn.start:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+.toggle-btn.stop{background:linear-gradient(135deg,#ff6b35,#ff4010);color:#1a0500;}
+.toggle-btn.stop:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(255,107,53,0.4);}
+.break-btn{background:transparent;border:1px solid rgba(255,107,53,0.4);border-radius:14px;padding:17px 14px;color:var(–warn);font-family:‘Space Mono’,monospace;font-size:11px;letter-spacing:2px;cursor:pointer;transition:all 0.2s;white-space:nowrap;}
+.break-btn:hover{background:rgba(255,107,53,0.08);}
+.toggle-btn:active,.break-btn:active{transform:translateY(0);}
+.warning-text{text-align:center;color:var(–warn);font-size:11px;letter-spacing:2px;padding:8px 0;}
+
+/* Goal card */
+.goal-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;}
+.goal-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–accent2),transparent);opacity:0.4;}
+.goal-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.goal-input-wrap{flex:1;position:relative;}
+.goal-input-wrap input{width:100%;background:var(–surface);border:1px solid var(–border);border-radius:10px;padding:10px 40px 10px 14px;color:var(–text);font-family:‘Space Mono’,monospace;font-size:16px;font-weight:700;outline:none;transition:border-color 0.2s;}
+.goal-input-wrap input:focus{border-color:var(–accent2);}
+.goal-input-wrap .unit{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;color:var(–muted);}
+.goal-set-btn{background:transparent;border:1px solid var(–accent2);border-radius:10px;padding:10px 14px;color:var(–accent2);font-family:‘Space Mono’,monospace;font-size:11px;letter-spacing:1px;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.goal-set-btn:hover{background:rgba(0,204,255,0.07);}
+.goal-progress-wrap{height:8px;background:var(–surface);border-radius:4px;margin-bottom:10px;overflow:hidden;position:relative;}
+.goal-progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(–accent2),var(–accent));transition:width 0.5s ease;min-width:0%;max-width:100%;}
+.goal-progress-fill.achieved{background:linear-gradient(90deg,#fbbf24,#f97316);}
+.goal-stats{display:flex;justify-content:space-between;align-items:center;}
+.goal-pct{font-family:‘Space Mono’,monospace;font-size:20px;font-weight:700;color:var(–accent2);}
+.goal-pct.achieved{color:#fbbf24;}
+.goal-detail{font-size:10px;color:var(–muted);letter-spacing:1px;text-align:right;}
+.goal-detail span{color:var(–text);}
+
+/* History */
+.history-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:20px;position:relative;overflow:hidden;}
+.history-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–warn),transparent);opacity:0.35;}
+.history-list{list-style:none;}
+.history-item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(–border);animation:slideIn 0.3s ease;}
+.history-item:last-child{border-bottom:none;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);}}
+.history-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.history-main{flex:1;min-width:0;}
+.history-job{font-size:12px;font-weight:700;color:var(–text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-meta{font-size:10px;color:var(–muted);letter-spacing:1px;margin-top:2px;}
+.history-right{text-align:right;flex-shrink:0;}
+.history-earn{font-family:‘Space Mono’,monospace;font-size:14px;font-weight:700;color:var(–accent);}
+.history-earn.had-night{color:var(–night);}
+.history-night-label{font-size:9px;color:var(–night);letter-spacing:1px;margin-top:2px;}
+.no-history{text-align:center;color:var(–muted);font-size:11px;padding:16px 0;letter-spacing:2px;}
+.clear-btn{background:none;border:none;color:var(–muted);font-size:9px;letter-spacing:2px;cursor:pointer;font-family:‘Space Mono’,monospace;transition:color 0.2s;}
+.clear-btn:hover{color:var(–warn);}
+
+/* ── Stats page ── */
+.stats-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:20px;margin-bottom:16px;position:relative;overflow:hidden;}
+.stats-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–accent),transparent);opacity:0.4;}
+.stats-toggle{display:flex;gap:4px;background:var(–surface);border-radius:10px;padding:3px;margin-bottom:16px;}
+.stats-tab{flex:1;padding:8px;border:none;background:transparent;color:var(–muted);font-family:‘Space Mono’,monospace;font-size:10px;letter-spacing:2px;cursor:pointer;border-radius:8px;transition:all 0.2s;}
+.stats-tab.active{background:var(–card);color:var(–text);}
+.chart-wrap{position:relative;height:140px;display:flex;align-items:flex-end;gap:4px;padding-bottom:24px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;}
+.bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:2px;transition:height 0.5s ease;background:linear-gradient(180deg,var(–accent),rgba(0,255,136,0.4));}
+.bar-fill.empty{background:var(–surface);}
+.bar-label{position:absolute;bottom:-20px;font-size:9px;color:var(–muted);white-space:nowrap;font-family:‘Space Mono’,monospace;}
+.bar-val{font-size:8px;color:var(–muted);font-family:‘Space Mono’,monospace;white-space:nowrap;}
+.stats-summary{display:flex;gap:12px;margin-top:4px;}
+.stat-box{flex:1;background:var(–surface);border-radius:10px;padding:12px;text-align:center;}
+.stat-box .sv{font-family:‘Space Mono’,monospace;font-size:15px;font-weight:700;color:var(–accent);}
+.stat-box .sl{font-size:9px;color:var(–muted);letter-spacing:2px;margin-top:3px;text-transform:uppercase;}
+
+/* Job stats breakdown */
+.job-stat-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(–border);}
+.job-stat-row:last-child{border-bottom:none;}
+.job-stat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.job-stat-name{flex:1;font-size:12px;color:var(–text);}
+.job-stat-bar-wrap{width:80px;height:6px;background:var(–surface);border-radius:3px;overflow:hidden;}
+.job-stat-bar{height:100%;border-radius:3px;transition:width 0.5s;}
+.job-stat-val{font-family:‘Space Mono’,monospace;font-size:11px;color:var(–accent);min-width:60px;text-align:right;}
+
+.shifts-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:18px;position:relative;overflow:hidden;}
+.shifts-card::before{content:’’;position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(–night),transparent);opacity:0.5;}
+
+/* ── Backup page ── */
+.backup-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:24px;margin-top:8px;}
+.backup-note{font-size:12px;color:var(–muted);line-height:1.7;margin-bottom:20px;padding:12px;background:var(–surface);border-radius:10px;border-left:3px solid var(–warn);}
+.backup-btn{width:100%;display:flex;align-items:center;gap:14px;background:var(–surface);border:1px solid var(–border);border-radius:14px;padding:16px 18px;cursor:pointer;transition:all 0.2s;margin-bottom:12px;text-align:left;}
+.backup-btn:hover{border-color:var(–accent);transform:translateY(-1px);}
+.backup-btn.import:hover{border-color:var(–night);}
+.backup-btn-icon{font-size:24px;flex-shrink:0;}
+.backup-btn-title{font-size:14px;font-weight:700;color:var(–text);margin-bottom:2px;}
+.backup-btn-sub{font-size:11px;color:var(–muted);}
+
+/* ── Calendar ── */
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 10px;}
+.cal-nav-btn{background:var(–card);border:1px solid var(–border);color:var(–text);width:36px;height:36px;border-radius:10px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color 0.2s;}
+.cal-nav-btn:hover{border-color:var(–night);}
+.cal-month-label{font-family:‘Space Mono’,monospace;font-size:15px;font-weight:700;color:var(–text);letter-spacing:2px;}
+.cal-week-earn{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+.cal-week-earn::-webkit-scrollbar{display:none;}
+.week-earn-chip{flex-shrink:0;background:var(–card);border:1px solid var(–border);border-radius:10px;padding:6px 10px;text-align:center;min-width:60px;}
+.week-earn-chip.has-shifts{border-color:rgba(167,139,250,0.35);}
+.wec-label{font-size:9px;color:var(–muted);letter-spacing:1px;}
+.wec-val{font-family:‘Space Mono’,monospace;font-size:11px;color:var(–night);font-weight:700;margin-top:2px;}
+.wec-val.zero{color:var(–muted);}
+.cal-card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:12px;overflow:hidden;}
+.cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:4px;}
+.cal-dow{font-size:10px;color:var(–muted);text-align:center;padding:4px 0;letter-spacing:1px;}
+.cal-dow.sun{color:#fb7185;}.cal-dow.sat{color:#60a5fa;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-cell{min-height:54px;border-radius:8px;padding:4px 3px;cursor:pointer;position:relative;transition:background 0.15s;}
+.cal-cell:hover{background:rgba(255,255,255,0.05);}
+.cal-cell.other-month .cal-date{color:rgba(90,90,138,0.4);}
+.cal-cell.today{background:rgba(0,255,136,0.06);}
+.cal-cell.today .cal-date{background:var(–accent);color:#001a0e;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.cal-date{font-size:11px;color:var(–muted);margin-bottom:3px;line-height:20px;padding-left:1px;}
+.cal-cell.sun .cal-date{color:#fb7185;}
+.cal-cell.sat .cal-date{color:#60a5fa;}
+.cal-cell.today.sun .cal-date,.cal-cell.today.sat .cal-date{color:#001a0e;}
+.cal-dots{display:flex;flex-direction:column;gap:2px;}
+.cal-dot{font-size:9px;border-radius:3px;padding:1px 4px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
+.cal-dot.more{color:var(–muted);background:none;padding:0 4px;}
+
+/* Upcoming list */
+.upcoming-item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(–border);cursor:pointer;transition:opacity 0.15s;}
+.upcoming-item:last-child{border-bottom:none;}
+.upcoming-item:hover{opacity:0.8;}
+.upcoming-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.upcoming-main{flex:1;min-width:0;}
+.upcoming-job{font-size:12px;font-weight:700;color:var(–text);}
+.upcoming-time{font-family:‘Space Mono’,monospace;font-size:10px;color:var(–muted);margin-top:2px;}
+.upcoming-right{text-align:right;flex-shrink:0;}
+.upcoming-countdown{font-size:10px;color:var(–accent);letter-spacing:1px;}
+.upcoming-countdown.today{color:var(–accent);font-weight:700;}
+.upcoming-earn{font-family:‘Space Mono’,monospace;font-size:11px;color:var(–night);margin-top:2px;}
+.no-shifts{text-align:center;color:var(–muted);font-size:11px;padding:16px 0;letter-spacing:2px;}
+
+/* FAB */
+.shift-fab{position:fixed;bottom:80px;right:20px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(–night),#7c3aed);border:none;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(167,139,250,0.4);transition:transform 0.2s,box-shadow 0.2s;z-index:50;display:none;}
+.shift-fab:hover{transform:scale(1.1);box-shadow:0 6px 28px rgba(167,139,250,0.5);}
+#page-shifts .shift-fab{display:flex;align-items:center;justify-content:center;}
+
+/* Bottom sheet */
+.bottom-sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:flex;align-items:flex-end;backdrop-filter:blur(3px);animation:fadeIn 0.2s ease;}
+.bottom-sheet-overlay.hidden{display:none;}
+.bottom-sheet{background:#1a1a26;border:1px solid var(–border);border-radius:20px 20px 0 0;padding:16px 20px 32px;width:100%;max-width:480px;margin:0 auto;animation:slideUp 0.3s cubic-bezier(0.34,1.2,0.64,1);}
+.bs-handle{width:36px;height:4px;background:var(–border);border-radius:2px;margin:0 auto 18px;}
+.bs-job-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.bs-job-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.bs-job-name{font-size:16px;font-weight:700;color:var(–text);}
+.bs-time{font-family:‘Space Mono’,monospace;font-size:22px;font-weight:700;color:var(–night);margin-bottom:6px;}
+.bs-meta{font-size:11px;color:var(–muted);letter-spacing:1px;margin-bottom:8px;}
+.bs-memo{font-size:12px;color:var(–text);background:var(–surface);border-radius:8px;padding:8px 12px;margin-bottom:10px;display:none;}
+.bs-memo.show{display:block;}
+.bs-earn{font-family:‘Space Mono’,monospace;font-size:13px;color:var(–accent);margin-bottom:18px;}
+.bs-actions{display:flex;gap:10px;}
+.bs-btn{flex:1;padding:13px;border-radius:12px;font-size:13px;cursor:pointer;border:none;transition:all 0.2s;font-weight:700;}
+.bs-btn.edit{background:rgba(167,139,250,0.15);color:var(–night);border:1px solid rgba(167,139,250,0.3);}
+.bs-btn.edit:hover{background:rgba(167,139,250,0.25);}
+.bs-btn.del{background:rgba(255,107,53,0.12);color:var(–warn);border:1px solid rgba(255,107,53,0.3);}
+.bs-btn.del:hover{background:rgba(255,107,53,0.22);}
+
+/* Repeat badge */
+.repeat-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.3);border-radius:6px;padding:2px 7px;font-size:9px;color:var(–night);letter-spacing:1px;margin-left:6px;vertical-align:middle;}
+
+/* Notification badge */
+.notif-badge{display:none;width:8px;height:8px;background:var(–warn);border-radius:50%;position:absolute;top:6px;right:6px;}
+.notif-badge.show{display:block;}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px);animation:fadeIn 0.2s ease;}
+.modal-overlay.hidden{display:none;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.modal{background:#1a1a26;border:1px solid var(–border);border-radius:18px;padding:24px;width:100%;max-width:360px;animation:slideUp 0.25s ease;}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-title{font-size:11px;letter-spacing:3px;color:var(–muted);text-transform:uppercase;margin-bottom:18px;}
+.modal-field{margin-bottom:14px;}
+.modal-label{font-size:11px;color:var(–muted);letter-spacing:1px;margin-bottom:6px;display:block;}
+.modal-input{width:100%;background:var(–surface);border:1px solid var(–border);border-radius:10px;padding:11px 14px;color:var(–text);font-family:‘Space Mono’,monospace;font-size:15px;font-weight:700;outline:none;transition:border-color 0.2s;}
+.modal-input.name-input{font-family:‘Noto Sans JP’,sans-serif;font-size:14px;}
+.modal-input:focus{border-color:var(–accent);}
+.color-grid{display:flex;gap:8px;flex-wrap:wrap;}
+.color-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform 0.15s,border-color 0.15s;}
+.color-swatch:hover{transform:scale(1.15);}
+.color-swatch.selected-color{border-color:#fff;transform:scale(1.1);}
+.modal-actions{display:flex;gap:8px;margin-top:18px;}
+.modal-btn{flex:1;padding:12px;border-radius:10px;font-family:‘Space Mono’,monospace;font-size:11px;letter-spacing:2px;cursor:pointer;border:none;transition:all 0.2s;}
+.modal-btn.cancel{background:var(–surface);color:var(–muted);}
+.modal-btn.cancel:hover{color:var(–text);}
+.modal-btn.save{background:linear-gradient(135deg,#00ff88,#00cc70);color:#001a0e;font-weight:700;}
+.modal-btn.save:hover{box-shadow:0 4px 20px rgba(0,255,136,0.4);}
+.modal-select{width:100%;background:var(–surface);border:1px solid var(–border);border-radius:10px;padding:11px 14px;color:var(–text);font-size:14px;outline:none;transition:border-color 0.2s;-webkit-appearance:none;}
+.modal-select:focus{border-color:var(–accent);}
+
+/* Reminder popup */
+.reminder-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:#1a1a26;border:1px solid var(–accent);border-radius:14px;padding:14px 20px;z-index:200;transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);max-width:340px;width:calc(100% - 32px);}
+.reminder-toast.show{transform:translateX(-50%) translateY(0);}
+.reminder-toast-title{font-size:11px;color:var(–accent);letter-spacing:2px;font-family:‘Space Mono’,monospace;margin-bottom:4px;}
+.reminder-toast-body{font-size:13px;color:var(–text);}
+.reminder-toast-close{position:absolute;top:10px;right:12px;background:none;border:none;color:var(–muted);font-size:16px;cursor:pointer;}
+</style>
+
+</head>
+<body>
+<div class="container">
+
+<!-- Nav -->
+
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="switchPage('home',this)"><span class="tab-icon">⏱</span><span class="tab-label">勤務</span></button>
+  <button class="nav-tab" onclick="switchPage('stats',this)"><span class="tab-icon">📊</span><span class="tab-label">集計</span></button>
+  <button class="nav-tab" onclick="switchPage('shifts',this)" id="shiftTabBtn"><span class="tab-icon">📅</span><span class="tab-label">シフト</span><div class="notif-badge" id="shiftNotifBadge"></div></button>
+</nav>
+
+<!-- ══ HOME PAGE ══ -->
+
+<div class="page active" id="page-home">
+
+  <div class="clock-wrap">
+    <div class="clock-canvas-wrap">
+      <canvas id="clockFace" width="140" height="140"></canvas>
+      <div class="night-badge" id="nightBadge">🌙 深夜</div>
+    </div>
+    <div class="digital-clock" id="digitalClock">00:00:00</div>
+    <div class="date-text" id="dateText">--</div>
+  </div>
+
+  <div class="night-zone-bar">
+    <div style="position:absolute;top:0;bottom:0;left:calc(22/24*100%);right:0;background:rgba(167,139,250,0.15);border-left:1px solid rgba(167,139,250,0.35);"></div>
+    <div style="position:absolute;top:0;bottom:0;left:0;width:calc(5/24*100%);background:rgba(167,139,250,0.15);border-right:1px solid rgba(167,139,250,0.35);"></div>
+    <span class="night-zone-label bar-label-22">22:00</span>
+    <span class="night-zone-label bar-label-05">05:00</span>
+    <div class="now-marker" id="nowMarker"></div>
+  </div>
+  <div class="bar-bottom">深夜割増帯 (×1.25)　22:00 〜 翌 05:00</div>
+
+  <!-- Jobs -->
+
+  <div class="jobs-card">
+    <div class="section-title"><span>🏢 バイト先</span></div>
+    <div class="job-list" id="jobList"></div>
+    <button class="add-job-btn" onclick="openJobModal()">＋ バイト先を追加</button>
+  </div>
+
+  <!-- Goal -->
+
+  <div class="goal-card">
+    <div class="section-title"><span>🎯 今月の目標</span></div>
+    <div class="goal-row">
+      <div class="goal-input-wrap">
+        <input type="number" id="goalInput" placeholder="50000" min="1" max="9999999" />
+        <span class="unit">円</span>
+      </div>
+      <button class="goal-set-btn" onclick="saveGoal()">SET</button>
+    </div>
+    <div class="goal-progress-wrap"><div class="goal-progress-fill" id="goalFill" style="width:0%"></div></div>
+    <div class="goal-stats">
+      <div class="goal-pct" id="goalPct">0%</div>
+      <div class="goal-detail" id="goalDetail">目標を設定してください</div>
+    </div>
+  </div>
+
+  <!-- Counter -->
+
+  <div class="counter-card" id="counterCard">
+    <div class="active-job-banner" id="activeJobBanner"></div>
+    <div class="status-row">
+      <div class="status-badge"><div class="status-dot" id="statusDot"></div><span id="statusText">バイト先を選択</span></div>
+      <div class="elapsed-time" id="elapsedTime">00:00:00</div>
+    </div>
+    <div class="night-tag" id="nightTag"><div class="night-tag-dot"></div>深夜割増中 ×1.25 (¥<span id="nightWageDisp">0</span>/h)</div>
+    <div class="break-banner" id="breakBanner">
+      <span class="break-icon">☕</span>
+      <div class="break-info"><div class="break-title">BREAK TIME</div><div class="break-timer-val" id="breakTimerVal">00:00</div></div>
+      <button class="break-end-btn" onclick="endBreak()">復帰</button>
+    </div>
+    <div class="money-display" id="moneyDisplay">
+      <div class="money-label">今日の収入</div>
+      <div class="money-value" id="moneyValue"><span class="yen">¥</span><span id="wholeNum">0</span><span class="decimal" id="decNum">.00</span></div>
+    </div>
+    <div class="earn-breakdown" id="earnBreakdown" style="display:none">
+      <span class="earn-chip day-chip" id="dayChip">通常 ¥0</span>
+      <span class="earn-chip night-chip" id="nightChip">深夜 ¥0</span>
+    </div>
+    <div class="rate-display">
+      <div class="rate-item"><div class="rate-value" id="perSec">¥--</div><div class="rate-label">/ 秒</div></div>
+      <div class="rate-item"><div class="rate-value" id="perMin">¥--</div><div class="rate-label">/ 分</div></div>
+      <div class="rate-item"><div class="rate-value" id="perHour">¥--</div><div class="rate-label">/ 時間</div></div>
+    </div>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    <div id="warnMsg" class="warning-text" style="display:none">バイト先を選択してください</div>
+    <div class="btn-row">
+      <button class="toggle-btn start" id="toggleBtn" onclick="toggleWork()">▶ 出勤する</button>
+      <button class="break-btn" id="breakBtn" onclick="startBreak()" style="display:none">☕ 休憩</button>
+    </div>
+  </div>
+
+  <!-- History -->
+
+  <div class="history-card">
+    <div class="section-title"><span>📋 履歴</span><button class="clear-btn" onclick="clearHistory()">CLEAR</button></div>
+    <ul class="history-list" id="historyList"><li class="no-history">まだ記録がありません</li></ul>
+  </div>
+</div>
+
+<!-- ══ STATS PAGE ══ -->
+
+<div class="page" id="page-stats">
+  <div class="stats-card">
+    <div class="section-title"><span>📈 収入グラフ</span></div>
+    <div class="stats-toggle">
+      <button class="stats-tab active" onclick="switchStats('week',this)">週</button>
+      <button class="stats-tab" onclick="switchStats('month',this)">月</button>
+    </div>
+    <div class="chart-wrap" id="chartWrap"></div>
+    <div class="stats-summary" id="statsSummary"></div>
+  </div>
+  <div class="stats-card">
+    <div class="section-title"><span>🏢 バイト先別</span></div>
+    <div id="jobBreakdown"><div class="no-history">まだ記録がありません</div></div>
+  </div>
+</div>
+
+<!-- ══ SHIFTS PAGE ══ -->
+
+<div class="page" id="page-shifts">
+
+  <!-- Calendar header -->
+
+  <div class="cal-header">
+    <button class="cal-nav-btn" onclick="calPrev()">‹</button>
+    <div class="cal-month-label" id="calMonthLabel">2025年1月</div>
+    <button class="cal-nav-btn" onclick="calNext()">›</button>
+  </div>
+
+  <!-- Weekly earnings forecast -->
+
+  <div class="cal-week-earn" id="calWeekEarn"></div>
+
+  <!-- Calendar grid -->
+
+  <div class="cal-card">
+    <div class="cal-dow-row">
+      <div class="cal-dow sun">日</div><div class="cal-dow">月</div><div class="cal-dow">火</div>
+      <div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div>
+      <div class="cal-dow sat">土</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <!-- Upcoming list -->
+
+  <div class="shifts-card" style="margin-top:14px;">
+    <div class="section-title"><span>📋 直近のシフト</span></div>
+    <div id="upcomingList"><div class="no-shifts">シフトがありません</div></div>
+  </div>
+
+  <!-- FAB -->
+
+<button class="shift-fab" onclick="openShiftModal()">＋</button>
+
+</div>
+
+</div><!-- /container -->
+
+<!-- Job Modal -->
+
+<div class="modal-overlay hidden" id="jobModalOverlay" onclick="handleJobOverlay(event)">
+  <div class="modal">
+    <div class="modal-title" id="jobModalTitle">バイト先を追加</div>
+    <div class="modal-field"><label class="modal-label">バイト先の名前</label><input class="modal-input name-input" id="modalName" type="text" placeholder="例: コンビニ、居酒屋…" maxlength="20"/></div>
+    <div class="modal-field"><label class="modal-label">時給 (円/h)</label><input class="modal-input" id="modalWage" type="number" placeholder="1000" min="1" max="99999"/></div>
+    <div class="modal-field"><label class="modal-label">カラー</label><div class="color-grid" id="colorGrid"></div></div>
+    <div class="modal-actions"><button class="modal-btn cancel" onclick="closeJobModal()">キャンセル</button><button class="modal-btn save" onclick="saveJob()">保存</button></div>
+  </div>
+</div>
+
+<!-- Shift Add/Edit Modal -->
+
+<div class="modal-overlay hidden" id="shiftModalOverlay" onclick="handleShiftOverlay(event)">
+  <div class="modal" style="max-height:90vh;overflow-y:auto;">
+    <div class="modal-title" id="shiftModalTitle">シフトを追加</div>
+    <div class="modal-field"><label class="modal-label">バイト先</label><select class="modal-select" id="shiftJobSelect"></select></div>
+    <div class="modal-field"><label class="modal-label">日付</label><input class="modal-input" id="shiftDate" type="date"/></div>
+    <div class="modal-field" style="display:flex;gap:10px;">
+      <div style="flex:1"><label class="modal-label">開始</label><input class="modal-input" id="shiftStart" type="time"/></div>
+      <div style="flex:1"><label class="modal-label">終了</label><input class="modal-input" id="shiftEnd" type="time"/></div>
+    </div>
+    <!-- Repeat -->
+    <div class="modal-field">
+      <label class="modal-label">繰り返し</label>
+      <select class="modal-select" id="shiftRepeat" onchange="toggleRepeatEnd()">
+        <option value="none">なし</option>
+        <option value="weekly">毎週</option>
+        <option value="biweekly">隔週</option>
+        <option value="monthly">毎月同じ日</option>
+      </select>
+    </div>
+    <div class="modal-field" id="repeatEndField" style="display:none">
+      <label class="modal-label">繰り返し終了日</label>
+      <input class="modal-input" id="shiftRepeatEnd" type="date"/>
+    </div>
+    <div class="modal-field" id="shiftMemoField">
+      <label class="modal-label">メモ（任意）</label>
+      <input class="modal-input name-input" id="shiftMemo" type="text" placeholder="持ち物など…" maxlength="40"/>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeShiftModal()">キャンセル</button>
+      <button class="modal-btn save" id="shiftSaveBtn" onclick="saveShift()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shift Detail Bottom Sheet -->
+
+<div class="bottom-sheet-overlay hidden" id="shiftDetailOverlay" onclick="closeShiftDetail()">
+  <div class="bottom-sheet" onclick="event.stopPropagation()">
+    <div class="bs-handle"></div>
+    <div class="bs-job-row" id="bsJobRow"></div>
+    <div class="bs-time" id="bsTime"></div>
+    <div class="bs-meta" id="bsMeta"></div>
+    <div class="bs-memo" id="bsMemo"></div>
+    <div class="bs-earn" id="bsEarn"></div>
+    <div class="bs-actions">
+      <button class="bs-btn edit" onclick="editShiftFromDetail()">✏️ 編集</button>
+      <button class="bs-btn del" onclick="deleteShiftFromDetail()">🗑 削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reminder Toast -->
+
+<div class="reminder-toast" id="reminderToast">
+  <button class="reminder-toast-close" onclick="closeToast()">×</button>
+  <div class="reminder-toast-title">⏰ シフトリマインド</div>
+  <div class="reminder-toast-body" id="reminderToastBody">--</div>
+</div>
+
+<script>
+const COLORS=['#00ff88','#00ccff','#a78bfa','#fb7185','#fbbf24','#34d399','#f97316','#e879f9','#60a5fa','#a3e635'];
+
+// ── State ──
+let jobs=[];
+let selectedJobId=null;
+let workHistory=[];
+let shifts=[];
+let goalAmount=0;
+let startTime=null,timerInterval=null;
+let dayEarned=0,nightEarned=0,lastTickTime=null,progressSec=0;
+let editingJobId=null,modalColor=COLORS[0];
+let breakStart=null,breakTotal=0,onBreak=false;
+let statsMode='week';
+let notifiedShifts=new Set();
+let reminderInterval=null;
+
+// ── Persistent storage (single-key bundle) ──
+const STORE_KEY = 'salaryAppData_v1';
+
+function loadAll(){
+  try{
+    const s = localStorage.getItem(STORE_KEY);
+    return s ? JSON.parse(s) : {};
+  }catch(e){ return {}; }
+}
+function saveAll(){
+  const bundle = { jobs, selectedJobId, workHistory, shifts, goalAmount };
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(bundle)); }catch(e){}
+}
+
+// Export data as JSON file
+function exportData(){
+  const bundle = { jobs, selectedJobId, workHistory, shifts, goalAmount, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'salary_backup_' + new Date().toLocaleDateString('ja-JP').replace(/\//g,'-') + '.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// Import data from JSON file
+function importData(){
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        const d = JSON.parse(ev.target.result);
+        jobs          = d.jobs          || [];
+        selectedJobId = d.selectedJobId || null;
+        workHistory   = d.workHistory   || [];
+        shifts        = d.shifts        || [];
+        goalAmount    = d.goalAmount    || 0;
+        saveAll();
+        renderJobs(); renderHistory(); updateCounterUI();
+        if(goalAmount) document.getElementById('goalInput').value = goalAmount;
+        updateGoalDisplay(); renderShifts();
+        showToast('✅ データを復元しました！');
+      }catch(err){ alert('ファイルの読み込みに失敗しました'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function isNight(d){const h=(d||new Date()).getHours();return h>=22||h<5;}
+function getJob(id){return jobs.find(j=>j.id===id);}
+function selJob(){return getJob(selectedJobId);}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function fmt(ms){const s=Math.floor(ms/1000);return[Math.floor(s/3600),Math.floor((s%3600)/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');}
+function fmtMin(ms){const s=Math.floor(ms/1000);return[Math.floor(s/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');}
+
+// ── Page nav ──
+function switchPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='stats') renderStats();
+  if(id==='shifts'){calYear=new Date().getFullYear();calMonth=new Date().getMonth();renderShifts();}
+}
+
+// ── Clock ──
+function startClock(){drawClock();updateDigital();updateNowMarker();setInterval(()=>{drawClock();updateDigital();updateNowMarker();if(!startTime)updateRateDisplay();checkReminders();},1000);}
+function drawClock(){
+  const cv=document.getElementById('clockFace'),ctx=cv.getContext('2d');
+  const cx=70,cy=70,r=63,now=new Date();
+  const h=now.getHours()%12,m=now.getMinutes(),s=now.getSeconds(),night=isNight(now);
+  ctx.clearRect(0,0,140,140);
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle=night?'rgba(167,139,250,0.35)':'rgba(0,255,136,0.25)';ctx.lineWidth=1.5;ctx.stroke();
+  const ns=(10/12)*Math.PI*2-Math.PI/2,ne=(5/12)*Math.PI*2-Math.PI/2+Math.PI*2;
+  ctx.beginPath();ctx.arc(cx,cy,r-5,ns,ne);ctx.strokeStyle='rgba(167,139,250,0.5)';ctx.lineWidth=4;ctx.stroke();
+  for(let i=0;i<60;i++){const a=(i/60)*Math.PI*2-Math.PI/2,maj=i%5===0,o=r-1,inn=maj?r-9:r-5;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*o,cy+Math.sin(a)*o);ctx.lineTo(cx+Math.cos(a)*inn,cy+Math.sin(a)*inn);ctx.strokeStyle=maj?(night?'rgba(167,139,250,0.7)':'rgba(0,255,136,0.7)'):'rgba(255,255,255,0.1)';ctx.lineWidth=maj?1.5:1;ctx.stroke();}
+  const jc=selJob()?.color,hc=jc||(night?'rgba(167,139,250,0.9)':'rgba(0,255,136,0.9)');
+  dH(ctx,cx,cy,((h+m/60+s/3600)/12)*Math.PI*2-Math.PI/2,34,3,hc);
+  dH(ctx,cx,cy,((m+s/60)/60)*Math.PI*2-Math.PI/2,48,2,'#e8e8f0');
+  dH(ctx,cx,cy,(s/60)*Math.PI*2-Math.PI/2,53,1,night?'#c4b5fd':'#00ff88');
+  ctx.beginPath();ctx.arc(cx,cy,3.5,0,Math.PI*2);ctx.fillStyle=hc;ctx.fill();
+  document.getElementById('nightBadge').classList.toggle('show',night);
+}
+function dH(ctx,cx,cy,a,l,w,c){ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*l,cy+Math.sin(a)*l);ctx.strokeStyle=c;ctx.lineWidth=w;ctx.lineCap='round';ctx.stroke();}
+function updateDigital(){const now=new Date(),night=isNight(now),pad=n=>String(n).padStart(2,'0');document.getElementById('digitalClock').textContent=`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;document.getElementById('digitalClock').className='digital-clock'+(night?' night-mode':'');document.getElementById('dateText').textContent=now.toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'});}
+function updateNowMarker(){const now=new Date(),pct=(now.getHours()*3600+now.getMinutes()*60+now.getSeconds())/86400*100;document.getElementById('nowMarker').style.left=pct+'%';}
+
+// ── Jobs ──
+function renderJobs(){
+  const el=document.getElementById('jobList');
+  if(!jobs.length){el.innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;letter-spacing:1px;">バイト先がありません</div>';return;}
+  el.innerHTML=jobs.map(j=>`<div class="job-item${j.id===selectedJobId?' selected':''}" onclick="selectJob('${j.id}')"><div class="job-color-dot" style="background:${j.color}"></div><div class="job-info"><div class="job-name">${esc(j.name)}</div><div class="job-wage">通常 ¥${j.wage.toLocaleString()}/h &nbsp;<span class="night-w">深夜 ¥${Math.round(j.wage*1.25).toLocaleString()}/h</span></div></div><div class="job-actions"><button class="job-btn" onclick="editJob(event,'${j.id}')">編集</button><button class="job-btn del" onclick="deleteJob(event,'${j.id}')">削除</button></div><span class="selected-check">✓</span></div>`).join('');
+}
+function selectJob(id){if(startTime)return;selectedJobId=id;saveAll();renderJobs();updateCounterUI();drawClock();}
+function deleteJob(e,id){e.stopPropagation();if(startTime&&selectedJobId===id)return;jobs=jobs.filter(j=>j.id!==id);if(selectedJobId===id){selectedJobId=jobs[0]?.id||null;}saveAll();renderJobs();updateCounterUI();}
+function editJob(e,id){e.stopPropagation();const job=getJob(id);if(!job)return;editingJobId=id;document.getElementById('jobModalTitle').textContent='バイト先を編集';document.getElementById('modalName').value=job.name;document.getElementById('modalWage').value=job.wage;modalColor=job.color;renderColorGrid();document.getElementById('jobModalOverlay').classList.remove('hidden');}
+function openJobModal(){editingJobId=null;document.getElementById('jobModalTitle').textContent='バイト先を追加';document.getElementById('modalName').value='';document.getElementById('modalWage').value='';modalColor=COLORS[jobs.length%COLORS.length];renderColorGrid();document.getElementById('jobModalOverlay').classList.remove('hidden');setTimeout(()=>document.getElementById('modalName').focus(),100);}
+function closeJobModal(){document.getElementById('jobModalOverlay').classList.add('hidden');}
+function handleJobOverlay(e){if(e.target===document.getElementById('jobModalOverlay'))closeJobModal();}
+function renderColorGrid(){document.getElementById('colorGrid').innerHTML=COLORS.map(c=>`<div class="color-swatch${c===modalColor?' selected-color':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join('');}
+function pickColor(c){modalColor=c;renderColorGrid();}
+function saveJob(){
+  const name=document.getElementById('modalName').value.trim();
+  const wage=parseInt(document.getElementById('modalWage').value);
+  if(!name){document.getElementById('modalName').focus();return;}
+  if(!wage||wage<1){document.getElementById('modalWage').focus();return;}
+  if(editingJobId){const j=getJob(editingJobId);j.name=name;j.wage=wage;j.color=modalColor;}
+  else{jobs.push({id:'j'+Date.now(),name,wage,color:modalColor});if(!selectedJobId){selectedJobId=jobs[0].id;}}
+  saveAll();renderJobs();updateCounterUI();closeJobModal();drawClock();
+}
+function saveJobs(){saveAll();}
+
+// ── Goal ──
+function initGoal(){if(goalAmount)document.getElementById('goalInput').value=goalAmount;updateGoalDisplay();}
+function saveGoal(){const v=parseInt(document.getElementById('goalInput').value);if(!v||v<1)return;goalAmount=v;saveAll();updateGoalDisplay();}
+function updateGoalDisplay(){
+  const thisMonthTotal=getThisMonthTotal();
+  if(!goalAmount){document.getElementById('goalFill').style.width='0%';document.getElementById('goalPct').textContent='0%';document.getElementById('goalDetail').textContent='目標を設定してください';return;}
+  const pct=Math.min(thisMonthTotal/goalAmount*100,100);
+  const achieved=pct>=100;
+  document.getElementById('goalFill').style.width=pct+'%';
+  document.getElementById('goalFill').className='goal-progress-fill'+(achieved?' achieved':'');
+  document.getElementById('goalPct').textContent=Math.floor(pct)+'%';
+  document.getElementById('goalPct').className='goal-pct'+(achieved?' achieved':'');
+  if(achieved) document.getElementById('goalDetail').innerHTML='<span>🎉 達成！</span>';
+  else document.getElementById('goalDetail').innerHTML=`今月 <span>¥${thisMonthTotal.toLocaleString()}</span> / ¥${goalAmount.toLocaleString()}`;
+}
+function getThisMonthTotal(){
+  const now=new Date(),ym=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}`;
+  return workHistory.filter(r=>r.date&&r.date.startsWith(ym.slice(5))||true).reduce((s,r)=>{
+    // check if record is this month by parsing date roughly
+    try{const d=new Date(r.fullDate||Date.now());if(d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear())return s+r.earned;}catch(e){}return s;
+  },0);
+}
+
+// ── Counter ──
+function updateCounterUI(){
+  const job=selJob();
+  const banner=document.getElementById('activeJobBanner');
+  if(job){banner.className='active-job-banner show';banner.style.background=job.color+'22';banner.style.border=`1px solid ${job.color}55`;banner.style.color=job.color;banner.innerHTML=`<span style="width:8px;height:8px;border-radius:50%;background:${job.color};display:inline-block;flex-shrink:0"></span> ${esc(job.name)}`;document.getElementById('toggleBtn').disabled=false;document.getElementById('statusText').textContent=startTime?'勤務中':'待機中';}
+  else{banner.className='active-job-banner';document.getElementById('toggleBtn').disabled=true;document.getElementById('statusText').textContent='バイト先を選択';}
+  updateRateDisplay();
+}
+function updateRateDisplay(){
+  const job=selJob();
+  if(!job){['perSec','perMin','perHour'].forEach(id=>document.getElementById(id).textContent='¥--');return;}
+  const w=isNight()?job.wage*1.25:job.wage,night=isNight();
+  document.getElementById('perSec').textContent=`¥${(w/3600).toFixed(3)}`;
+  document.getElementById('perSec').className='rate-value'+(night?' night-rate':'');
+  document.getElementById('perMin').textContent=`¥${(w/60).toFixed(1)}`;
+  document.getElementById('perHour').textContent=`¥${Math.round(w).toLocaleString()}`;
+  document.getElementById('nightWageDisp').textContent=Math.round(job.wage*1.25).toLocaleString();
+}
+function toggleWork(){
+  const job=selJob();
+  if(!job){document.getElementById('warnMsg').style.display='block';setTimeout(()=>document.getElementById('warnMsg').style.display='none',2000);return;}
+  if(!startTime){
+    startTime=Date.now();lastTickTime=startTime;dayEarned=0;nightEarned=0;progressSec=0;breakTotal=0;onBreak=false;
+    document.getElementById('toggleBtn').textContent='■ 退勤する';
+    document.getElementById('toggleBtn').className='toggle-btn stop';
+    document.getElementById('statusDot').classList.add('active');
+    document.getElementById('statusText').textContent='勤務中';
+    document.getElementById('counterCard').classList.add('running');
+    document.getElementById('moneyValue').classList.add('running');
+    document.getElementById('breakBtn').style.display='block';
+    timerInterval=setInterval(tick,100);
+  }else{stopWork(Date.now()-startTime);}
+}
+function stopWork(elapsed){
+  clearInterval(timerInterval);timerInterval=null;
+  if(onBreak)endBreak();
+  const job=selJob();
+  const now=new Date();
+  const record={id:'r'+Date.now(),jobId:job?.id,jobName:job?.name||'?',jobColor:job?.color||'#888',date:`${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`,fullDate:now.toISOString(),duration:fmt(elapsed-breakTotal),earned:Math.floor(dayEarned+nightEarned),dayEarned:Math.floor(dayEarned),nightEarned:Math.floor(nightEarned),hadNight:nightEarned>0};
+  workHistory.unshift(record);if(workHistory.length>60)workHistory=workHistory.slice(0,60);
+  saveAll();
+  startTime=null;lastTickTime=null;dayEarned=0;nightEarned=0;
+  document.getElementById('toggleBtn').textContent='▶ 出勤する';
+  document.getElementById('toggleBtn').className='toggle-btn start';
+  document.getElementById('statusDot').classList.remove('active','night-active','break-active');
+  document.getElementById('counterCard').classList.remove('running','night-running');
+  document.getElementById('moneyValue').classList.remove('running','night-color');
+  document.getElementById('progressBar').style.width='0%';
+  document.getElementById('progressBar').classList.remove('night-bar');
+  document.getElementById('nightTag').classList.remove('show');
+  document.getElementById('earnBreakdown').style.display='none';
+  document.getElementById('breakBanner').classList.remove('show');
+  document.getElementById('breakBtn').style.display='none';
+  document.getElementById('wholeNum').textContent='0';
+  document.getElementById('decNum').textContent='.00';
+  document.getElementById('elapsedTime').textContent='00:00:00';
+  updateCounterUI();renderHistory();updateGoalDisplay();
+}
+function tick(){
+  if(onBreak){
+    const bd=Date.now()-breakStart;
+    document.getElementById('breakTimerVal').textContent=fmtMin(bd);
+    document.getElementById('elapsedTime').textContent=fmt(Date.now()-startTime-breakTotal-bd);
+    lastTickTime=Date.now();return;
+  }
+  const now=Date.now(),delta=(now-lastTickTime)/1000;lastTickTime=now;
+  const night=isNight(),w=night?selJob().wage*1.25:selJob().wage;
+  if(night)nightEarned+=(w/3600)*delta;else dayEarned+=(w/3600)*delta;
+  const total=dayEarned+nightEarned,whole=Math.floor(total),dec=(total-whole).toFixed(2).slice(1);
+  document.getElementById('wholeNum').textContent=whole.toLocaleString();
+  document.getElementById('decNum').textContent=dec;
+  document.getElementById('elapsedTime').textContent=fmt(now-startTime-breakTotal);
+  const mv=document.getElementById('moneyValue');
+  mv.classList.toggle('night-color',night);
+  document.getElementById('counterCard').classList.toggle('night-running',night);
+  document.getElementById('nightTag').classList.toggle('show',night);
+  document.getElementById('progressBar').classList.toggle('night-bar',night);
+  const dot=document.getElementById('statusDot');
+  if(night){dot.classList.remove('active');dot.classList.add('night-active');}else{dot.classList.remove('night-active');dot.classList.add('active');}
+  if(nightEarned>0){document.getElementById('earnBreakdown').style.display='flex';document.getElementById('dayChip').textContent=`通常 ¥${Math.floor(dayEarned).toLocaleString()}`;document.getElementById('nightChip').textContent=`深夜 ¥${Math.floor(nightEarned).toLocaleString()}`;}
+  document.getElementById('progressBar').style.width=Math.min((now-startTime-breakTotal)/1000/3600*100,100)+'%';
+  updateRateDisplay();
+  progressSec+=delta;
+  if(progressSec>=10){progressSec=0;spawnCoin(Math.round((w/3600)*10),night);}
+}
+function spawnCoin(amount,night){const d=document.getElementById('moneyDisplay');const el=document.createElement('div');el.className='coin-float'+(night?' night-coin':'');el.textContent=`+¥${amount}`;el.style.left=(20+Math.random()*60)+'%';el.style.top='20px';d.appendChild(el);setTimeout(()=>el.remove(),1500);}
+
+// ── Break ──
+function startBreak(){
+  if(!startTime||onBreak)return;
+  onBreak=true;breakStart=Date.now();
+  document.getElementById('breakBanner').classList.add('show');
+  document.getElementById('breakBtn').style.display='none';
+  document.getElementById('statusDot').classList.remove('active','night-active');
+  document.getElementById('statusDot').classList.add('break-active');
+  document.getElementById('statusText').textContent='休憩中';
+}
+function endBreak(){
+  if(!onBreak)return;
+  breakTotal+=Date.now()-breakStart;
+  onBreak=false;breakStart=null;
+  document.getElementById('breakBanner').classList.remove('show');
+  document.getElementById('breakBtn').style.display='block';
+  document.getElementById('statusDot').classList.remove('break-active');
+  const night=isNight();
+  if(night)document.getElementById('statusDot').classList.add('night-active');
+  else document.getElementById('statusDot').classList.add('active');
+  document.getElementById('statusText').textContent='勤務中';
+  lastTickTime=Date.now();
+}
+
+// ── History ──
+function renderHistory(){
+  const list=document.getElementById('historyList');
+  if(!workHistory.length){list.innerHTML='<li class="no-history">まだ記録がありません</li>';return;}
+  list.innerHTML=workHistory.slice(0,20).map(r=>`<li class="history-item"><div class="history-dot" style="background:${r.jobColor}"></div><div class="history-main"><div class="history-job">${esc(r.jobName)}</div><div class="history-meta">${r.date} · ${r.duration}</div></div><div class="history-right"><div class="history-earn${r.hadNight?' had-night':''}">¥${r.earned.toLocaleString()}</div>${r.hadNight?'<div class="history-night-label">🌙 深夜含む</div>':''}</div></li>`).join('');
+}
+function clearHistory(){if(!workHistory.length)return;workHistory=[];saveAll();renderHistory();updateGoalDisplay();renderStats();}
+
+// ── Stats ──
+function switchStats(mode,btn){statsMode=mode;document.querySelectorAll('.stats-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderStats();}
+function renderStats(){
+  renderChart();renderJobBreakdown();
+}
+function renderChart(){
+  const wrap=document.getElementById('chartWrap');
+  const now=new Date();
+  let labels=[],values=[];
+  if(statsMode==='week'){
+    for(let i=6;i>=0;i--){
+      const d=new Date(now);d.setDate(d.getDate()-i);
+      const key=`${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+      const dayName=['日','月','火','水','木','金','土'][d.getDay()];
+      labels.push(i===0?'今日':dayName);
+      values.push(workHistory.filter(r=>r.date&&r.date.startsWith(key)).reduce((s,r)=>s+r.earned,0));
+    }
+  }else{
+    for(let i=11;i>=0;i--){
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      const key=`${String(d.getMonth()+1).padStart(2,'0')}/`;
+      labels.push(`${d.getMonth()+1}月`);
+      values.push(workHistory.filter(r=>r.date&&r.date.startsWith(key)).reduce((s,r)=>s+r.earned,0));
+    }
+  }
+  const maxV=Math.max(...values,1);
+  const total=values.reduce((s,v)=>s+v,0);
+  const avg=values.filter(v=>v>0).length?Math.floor(total/values.filter(v=>v>0).length):0;
+  wrap.innerHTML=values.map((v,i)=>{
+    const h=Math.round((v/maxV)*100);
+    const jobsOnDay=statsMode==='week'?[...new Set(workHistory.filter(r=>r.date&&r.date.startsWith(labels[i]==='今日'?`${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`:'')).map(r=>r.jobColor))]:[]; 
+    return `<div class="bar-col"><div class="bar-val">${v>0?'¥'+Math.floor(v/1000)+'k':''}</div><div class="bar-fill${v===0?' empty':''}" style="height:${h}px;${v>0&&i===values.length-1?'background:linear-gradient(180deg,var(--accent2),rgba(0,204,255,0.4))':''}"></div><div class="bar-label">${labels[i]}</div></div>`;
+  }).join('');
+  document.getElementById('statsSummary').innerHTML=`<div class="stat-box"><div class="sv">¥${total.toLocaleString()}</div><div class="sl">${statsMode==='week'?'週合計':'年合計'}</div></div><div class="stat-box"><div class="sv">¥${avg.toLocaleString()}</div><div class="sl">${statsMode==='week'?'日平均':'月平均'}</div></div><div class="stat-box"><div class="sv">${workHistory.length}</div><div class="sl">総勤務数</div></div>`;
+}
+function renderJobBreakdown(){
+  const el=document.getElementById('jobBreakdown');
+  if(!workHistory.length){el.innerHTML='<div class="no-history">まだ記録がありません</div>';return;}
+  const map={};
+  workHistory.forEach(r=>{if(!map[r.jobId])map[r.jobId]={name:r.jobName,color:r.jobColor,total:0};map[r.jobId].total+=r.earned;});
+  const rows=Object.values(map).sort((a,b)=>b.total-a.total);
+  const maxT=rows[0]?.total||1;
+  el.innerHTML=rows.map(r=>`<div class="job-stat-row"><div class="job-stat-dot" style="background:${r.color}"></div><div class="job-stat-name">${esc(r.name)}</div><div class="job-stat-bar-wrap"><div class="job-stat-bar" style="width:${Math.round(r.total/maxT*100)}%;background:${r.color}"></div></div><div class="job-stat-val">¥${r.total.toLocaleString()}</div></div>`).join('');
+}
+
+// ── Shifts & Calendar ──
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+let editingShiftId=null, detailShiftId=null;
+
+function calPrev(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();}
+function calNext(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();}
+
+function renderShifts(){renderCalendar();renderUpcoming();}
+
+function renderCalendar(){
+  const now=new Date();
+  const todayStr=toDateStr(now);
+  document.getElementById('calMonthLabel').textContent=`${calYear}年${calMonth+1}月`;
+
+  // Build grid
+  const firstDay=new Date(calYear,calMonth,1).getDay(); // 0=Sun
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const daysInPrev=new Date(calYear,calMonth,0).getDate();
+  const cells=[];
+  // prev month padding
+  for(let i=firstDay-1;i>=0;i--) cells.push({day:daysInPrev-i,month:calMonth-1,otherMonth:true});
+  // this month
+  for(let d=1;d<=daysInMonth;d++) cells.push({day:d,month:calMonth,otherMonth:false});
+  // next month padding
+  const remaining=(7-cells.length%7)%7;
+  for(let d=1;d<=remaining;d++) cells.push({day:d,month:calMonth+1,otherMonth:true});
+
+  const grid=document.getElementById('calGrid');
+  grid.innerHTML=cells.map(c=>{
+    const yr=c.month<0?calYear-1:c.month>11?calYear+1:calYear;
+    const mo=((c.month%12)+12)%12;
+    const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(c.day).padStart(2,'0')}`;
+    const dayShifts=shifts.filter(s=>s.date===ds).sort((a,b)=>a.start>b.start?1:-1);
+    const isToday=ds===todayStr;
+    const dow=new Date(ds).getDay();
+    const dowClass=dow===0?' sun':dow===6?' sat':'';
+    const dotsHtml=dayShifts.slice(0,2).map(s=>{
+      const job=getJob(s.jobId);
+      const col=job?.color||'#888';
+      const short=(job?.name||'?').slice(0,4);
+      return `<div class="cal-dot" style="background:${col}88;border-left:2px solid ${col}">${short}</div>`;
+    }).join('')+(dayShifts.length>2?`<div class="cal-dot more">+${dayShifts.length-2}</div>`:'');
+    return `<div class="cal-cell${c.otherMonth?' other-month':''}${isToday?' today':''}${dowClass}" onclick="calCellClick('${ds}')">`+
+      `<div class="cal-date">${c.day}</div>`+
+      `<div class="cal-dots">${dotsHtml}</div>`+
+      `</div>`;
+  }).join('');
+
+  renderWeekEarnings();
+  renderShiftNotifBadge();
+}
+
+function renderWeekEarnings(){
+  const wrap=document.getElementById('calWeekEarn');
+  // show 5 weeks of the current displayed month
+  const weeks=[];
+  const firstDay=new Date(calYear,calMonth,1);
+  const lastDay=new Date(calYear,calMonth+1,0);
+  let cur=new Date(firstDay);
+  cur.setDate(cur.getDate()-cur.getDay()); // go to Sunday of first week
+  for(let w=0;w<6;w++){
+    const wStart=new Date(cur);
+    const wEnd=new Date(cur); wEnd.setDate(wEnd.getDate()+6);
+    // skip weeks entirely outside the month
+    if(wEnd<firstDay||wStart>lastDay){cur.setDate(cur.getDate()+7);continue;}
+    const label=`${wStart.getMonth()+1}/${wStart.getDate()}〜`;
+    let total=0,hasShifts=false;
+    for(let d=0;d<7;d++){
+      const dd=new Date(cur); dd.setDate(dd.getDate()+d);
+      const ds=toDateStr(dd);
+      shifts.filter(s=>s.date===ds).forEach(s=>{
+        const job=getJob(s.jobId); if(!job) return;
+        const hrs=shiftHours(s);
+        const night=isNightShift(s);
+        total+=Math.round(job.wage*hrs*(night?1.125:1)); // approximate
+        hasShifts=true;
+      });
+    }
+    weeks.push({label,total,hasShifts});
+    cur.setDate(cur.getDate()+7);
+  }
+  wrap.innerHTML=weeks.map(w=>`<div class="week-earn-chip${w.hasShifts?' has-shifts':''}"><div class="wec-label">${w.label}</div><div class="wec-val${w.total===0?' zero':''}">¥${w.total>0?w.total.toLocaleString():'--'}</div></div>`).join('');
+}
+
+function renderUpcoming(){
+  const el=document.getElementById('upcomingList');
+  const now=new Date(), todayStr=toDateStr(now);
+  const upcoming=shifts.filter(s=>s.date>=todayStr).sort((a,b)=>a.date+a.start>b.date+b.start?1:-1).slice(0,8);
+  if(!upcoming.length){el.innerHTML='<div class="no-shifts">シフトがありません</div>';return;}
+  el.innerHTML=upcoming.map(s=>{
+    const job=getJob(s.jobId);
+    const isToday=s.date===todayStr;
+    const diffDays=Math.round((new Date(s.date)-new Date(todayStr))/86400000);
+    const cd=isToday?'⚡ 今日':diffDays===1?'明日':`${diffDays}日後`;
+    const earn=job?`¥${Math.round(job.wage*shiftHours(s)).toLocaleString()}`:'-';
+    const repIcon=s.repeat&&s.repeat!=='none'?`<span class="repeat-badge">🔁 ${repeatLabel(s.repeat)}</span>`:'';
+    return `<div class="upcoming-item" onclick="openShiftDetail('${s.id}')">
+      <div class="upcoming-dot" style="background:${job?.color||'#888'}"></div>
+      <div class="upcoming-main">
+        <div class="upcoming-job">${esc(job?.name||s.jobName||'?')}${repIcon}</div>
+        <div class="upcoming-time">${s.date.slice(5).replace('-','/')} &nbsp;${s.start}〜${s.end}</div>
+      </div>
+      <div class="upcoming-right">
+        <div class="upcoming-countdown${isToday?' today':''}">${cd}</div>
+        <div class="upcoming-earn">${earn}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderShiftNotifBadge(){
+  const now=new Date(),todayStr=toDateStr(now);
+  const has=shifts.some(s=>s.date===todayStr);
+  document.getElementById('shiftNotifBadge').classList.toggle('show',has);
+}
+
+function calCellClick(ds){
+  const dayShifts=shifts.filter(s=>s.date===ds);
+  if(dayShifts.length===1){openShiftDetail(dayShifts[0].id);return;}
+  if(dayShifts.length>1){openShiftDetail(dayShifts[0].id);return;}
+  // no shifts: open add modal for that date
+  openShiftModal(ds);
+}
+
+// Detail bottom sheet
+function openShiftDetail(id){
+  const s=shifts.find(sh=>sh.id===id); if(!s) return;
+  detailShiftId=id;
+  const job=getJob(s.jobId);
+  const col=job?.color||'#888';
+  document.getElementById('bsJobRow').innerHTML=`<div class="bs-job-dot" style="background:${col}"></div><div class="bs-job-name">${esc(job?.name||s.jobName||'?')}</div>`;
+  document.getElementById('bsTime').textContent=`${s.start} 〜 ${s.end}`;
+  const hrs=shiftHours(s);
+  const earn=job?`予定収入 ¥${Math.round(job.wage*hrs).toLocaleString()} (${hrs.toFixed(1)}h)`:'-';
+  document.getElementById('bsMeta').innerHTML=`${s.date.replace(/-/g,'/')} &nbsp;·&nbsp; ${['日','月','火','水','木','金','土'][new Date(s.date).getDay()]}曜日`+(s.repeat&&s.repeat!=='none'?` &nbsp;<span class="repeat-badge">🔁 ${repeatLabel(s.repeat)}</span>`:'');
+  document.getElementById('bsEarn').textContent=earn;
+  const memo=document.getElementById('bsMemo');
+  if(s.memo){memo.textContent='📝 '+s.memo;memo.classList.add('show');}else memo.classList.remove('show');
+  document.getElementById('shiftDetailOverlay').classList.remove('hidden');
+}
+function closeShiftDetail(){document.getElementById('shiftDetailOverlay').classList.add('hidden');detailShiftId=null;}
+function editShiftFromDetail(){const id=detailShiftId;closeShiftDetail();openShiftModal(null,id);}
+function deleteShiftFromDetail(){
+  if(!detailShiftId) return;
+  const s=shifts.find(sh=>sh.id===detailShiftId);
+  if(s?.repeatGroupId){
+    const groupCount=shifts.filter(sh=>sh.repeatGroupId===s.repeatGroupId).length;
+    if(groupCount>1 && confirm(`この繰り返しシフト全${groupCount}件を削除しますか？\n「キャンセル」でこの1件だけ削除します。`)){
+      shifts=shifts.filter(sh=>sh.repeatGroupId!==s.repeatGroupId);
+    } else {
+      shifts=shifts.filter(sh=>sh.id!==detailShiftId);
+    }
+  } else {
+    shifts=shifts.filter(sh=>sh.id!==detailShiftId);
+  }
+  saveAll();closeShiftDetail();renderShifts();
+}
+
+// Add/Edit modal
+function openShiftModal(prefillDate=null, editId=null){
+  if(!jobs.length){alert('先にバイト先を登録してください');return;}
+  editingShiftId=editId;
+  const sel=document.getElementById('shiftJobSelect');
+  sel.innerHTML=jobs.map(j=>`<option value="${j.id}">${esc(j.name)}</option>`).join('');
+  const now=new Date();
+  const defDate=prefillDate||toDateStr(now);
+
+  if(editId){
+    const s=shifts.find(sh=>sh.id===editId); if(!s) return;
+    document.getElementById('shiftModalTitle').textContent='シフトを編集';
+    sel.value=s.jobId;
+    document.getElementById('shiftDate').value=s.date;
+    document.getElementById('shiftStart').value=s.start;
+    document.getElementById('shiftEnd').value=s.end;
+    document.getElementById('shiftRepeat').value=s.repeat||'none';
+    document.getElementById('shiftRepeatEnd').value=s.repeatEnd||'';
+    document.getElementById('shiftMemo').value=s.memo||'';
+    document.getElementById('shiftSaveBtn').textContent='更新';
+  } else {
+    document.getElementById('shiftModalTitle').textContent='シフトを追加';
+    sel.value=selectedJobId||jobs[0].id;
+    document.getElementById('shiftDate').value=defDate;
+    document.getElementById('shiftStart').value='';
+    document.getElementById('shiftEnd').value='';
+    document.getElementById('shiftRepeat').value='none';
+    document.getElementById('shiftRepeatEnd').value='';
+    document.getElementById('shiftMemo').value='';
+    document.getElementById('shiftSaveBtn').textContent='保存';
+  }
+  toggleRepeatEnd();
+  document.getElementById('shiftModalOverlay').classList.remove('hidden');
+}
+function closeShiftModal(){document.getElementById('shiftModalOverlay').classList.add('hidden');editingShiftId=null;}
+function handleShiftOverlay(e){if(e.target===document.getElementById('shiftModalOverlay'))closeShiftModal();}
+function toggleRepeatEnd(){
+  const v=document.getElementById('shiftRepeat').value;
+  document.getElementById('repeatEndField').style.display=v==='none'?'none':'block';
+}
+function saveShift(){
+  const jobId=document.getElementById('shiftJobSelect').value;
+  const date=document.getElementById('shiftDate').value;
+  const start=document.getElementById('shiftStart').value;
+  const end=document.getElementById('shiftEnd').value;
+  const repeat=document.getElementById('shiftRepeat').value;
+  const repeatEnd=document.getElementById('shiftRepeatEnd').value;
+  const memo=document.getElementById('shiftMemo').value.trim();
+  if(!date||!start||!end) return;
+  const job=getJob(jobId);
+  if(editingShiftId){
+    const s=shifts.find(sh=>sh.id===editingShiftId);
+    if(s){Object.assign(s,{jobId,jobName:job?.name||'?',date,start,end,repeat,repeatEnd,memo});}
+  } else {
+    const dates=generateRepeatDates(date,repeat,repeatEnd);
+    const groupId=dates.length>1?('g'+Date.now()):null;
+    dates.forEach((d,i)=>{
+      shifts.push({id:'s'+Date.now()+i,jobId,jobName:job?.name||'?',date:d,start,end,repeat,repeatEnd,memo,repeatGroupId:groupId});
+    });
+  }
+  saveAll();closeShiftModal();renderShifts();
+}
+function generateRepeatDates(startDate,repeat,repeatEnd){
+  if(repeat==='none'||!repeatEnd) return [startDate];
+  const dates=[];
+  const cur=new Date(startDate);
+  const end=new Date(repeatEnd);
+  while(cur<=end){
+    dates.push(toDateStr(cur));
+    if(repeat==='weekly') cur.setDate(cur.getDate()+7);
+    else if(repeat==='biweekly') cur.setDate(cur.getDate()+14);
+    else if(repeat==='monthly') cur.setMonth(cur.getMonth()+1);
+    else break;
+    if(dates.length>52) break; // safety
+  }
+  return dates;
+}
+
+function deleteShift(id){
+  shifts=shifts.filter(s=>s.id!==id);
+  saveAll();renderShifts();
+}
+
+// helpers
+function toDateStr(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function shiftHours(s){
+  const [sh,sm]=s.start.split(':').map(Number);
+  const [eh,em]=s.end.split(':').map(Number);
+  let h=(eh*60+em)-(sh*60+sm);
+  if(h<0)h+=24*60;
+  return h/60;
+}
+function isNightShift(s){const h=parseInt(s.start.split(':')[0]);return h>=22||h<5;}
+function repeatLabel(r){return {weekly:'毎週',biweekly:'隔週',monthly:'毎月'}[r]||r;}
+
+// ── Reminder ──
+function checkReminders(){
+  const now=new Date();
+  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  shifts.filter(s=>s.date===todayStr).forEach(s=>{
+    const shiftTime=new Date(s.date+'T'+s.start);
+    const diff=shiftTime-now;
+    const key30=s.id+'_30',key0=s.id+'_0';
+    if(diff>0&&diff<=30*60*1000&&!notifiedShifts.has(key30)){
+      notifiedShifts.add(key30);
+      const job=getJob(s.jobId);showToast(`${esc(job?.name||s.jobName)} のシフトまであと30分です！(${s.start}〜)`);
+    }
+    if(diff>-2*60*1000&&diff<=0&&!notifiedShifts.has(key0)){
+      notifiedShifts.add(key0);
+      const job=getJob(s.jobId);showToast(`${esc(job?.name||s.jobName)} のシフト開始時刻です！(${s.start}〜)`);
+    }
+  });
+}
+let toastTimeout=null;
+function showToast(msg){
+  document.getElementById('reminderToastBody').innerHTML=msg;
+  document.getElementById('reminderToast').classList.add('show');
+  if(toastTimeout)clearTimeout(toastTimeout);
+  toastTimeout=setTimeout(closeToast,8000);
+}
+function closeToast(){document.getElementById('reminderToast').classList.remove('show');}
+
+// ── Init ──
+function init(){
+  document.getElementById('jobList').innerHTML='<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;">読み込み中...</div>';
+
+  const d = loadAll();
+  jobs          = d.jobs          || [];
+  selectedJobId = d.selectedJobId || null;
+  workHistory   = d.workHistory   || [];
+  shifts        = d.shifts        || [];
+  goalAmount    = d.goalAmount    || 0;
+
+  renderJobs(); renderHistory(); updateCounterUI();
+  if(goalAmount) document.getElementById('goalInput').value = goalAmount;
+  updateGoalDisplay();
+  startClock(); renderShifts();
+}
+init();
+
+document.getElementById('modalWage').addEventListener('keydown',e=>{if(e.key==='Enter')saveJob();});
+document.getElementById('modalName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('modalWage').focus();});
+document.getElementById('goalInput').addEventListener('keydown',e=>{if(e.key==='Enter')saveGoal();});
+</script>
+
+</body>
+</html>
